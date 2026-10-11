@@ -32,10 +32,18 @@ export const saveHistoryEntry = async (
     result,
   };
   const next = [entry, ...(await loadHistory())].slice(0, MAX_ENTRIES);
-  await AsyncStorage.setItem(KEY, JSON.stringify(next));
+  try {
+    await AsyncStorage.setItem(KEY, JSON.stringify(next));
+  } catch {
+    // 保存できない環境（プライベートブラウズ等）でも画面上の履歴は更新する
+  }
   return next;
 };
 
 export const clearHistory = async (): Promise<void> => {
-  await AsyncStorage.removeItem(KEY);
+  try {
+    await AsyncStorage.removeItem(KEY);
+  } catch {
+    // 削除に失敗しても画面上の履歴はクリアする
+  }
 };

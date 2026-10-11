@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { RecommendationView, formatYen, profileSummary } from '../components/RecommendationView';
 import { HistoryEntry } from '../storage/history';
@@ -17,6 +17,8 @@ const formatDate = (iso: string) => {
 
 export function HistoryScreen({ history, onClear }: Props) {
   const [selected, setSelected] = useState<HistoryEntry | null>(null);
+  // Alert はWebで表示されないため、画面内で削除を確認する
+  const [confirmingClear, setConfirmingClear] = useState(false);
 
   if (selected) {
     return (
@@ -30,12 +32,6 @@ export function HistoryScreen({ history, onClear }: Props) {
     );
   }
 
-  const confirmClear = () =>
-    Alert.alert('履歴を削除', 'すべての診断履歴を削除しますか？', [
-      { text: 'キャンセル', style: 'cancel' },
-      { text: '削除', style: 'destructive', onPress: onClear },
-    ]);
-
   return (
     <FlatList
       data={history}
@@ -45,10 +41,32 @@ export function HistoryScreen({ history, onClear }: Props) {
       ListHeaderComponent={
         history.length > 0 ? (
           <View style={styles.header}>
-            <Text style={styles.headerText}>肌状態の推移を振り返れます</Text>
-            <Pressable onPress={confirmClear} accessibilityRole="button">
-              <Text style={styles.clear}>すべて削除</Text>
-            </Pressable>
+            {confirmingClear ? (
+              <>
+                <Text style={styles.headerText}>すべての履歴を削除しますか？</Text>
+                <View style={styles.confirmActions}>
+                  <Pressable onPress={() => setConfirmingClear(false)} accessibilityRole="button">
+                    <Text style={styles.cancel}>キャンセル</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => {
+                      setConfirmingClear(false);
+                      onClear();
+                    }}
+                    accessibilityRole="button"
+                  >
+                    <Text style={styles.clear}>削除する</Text>
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <>
+                <Text style={styles.headerText}>肌状態の推移を振り返れます</Text>
+                <Pressable onPress={() => setConfirmingClear(true)} accessibilityRole="button">
+                  <Text style={styles.clear}>すべて削除</Text>
+                </Pressable>
+              </>
+            )}
           </View>
         ) : null
       }
@@ -68,6 +86,8 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: spacing.sm },
   headerText: { fontSize: 13, color: colors.subText },
   clear: { fontSize: 13, color: colors.primaryDark, fontWeight: '600' },
+  cancel: { fontSize: 13, color: colors.subText, fontWeight: '600' },
+  confirmActions: { flexDirection: 'row', gap: spacing.md },
   empty: { marginTop: 80, textAlign: 'center', color: colors.subText, lineHeight: 22 },
   row: {
     backgroundColor: colors.surface,
