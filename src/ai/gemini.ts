@@ -197,6 +197,17 @@ export const parseGeminiResponse = (response: GeminiResponse, profile: UserProfi
 
 // ---- API呼び出し ----
 
+/** Google が返すエラー本文（{ error: { message } }）から原因を取り出す */
+const readErrorMessage = async (res: Response): Promise<string> => {
+  try {
+    const body = (await res.json()) as { error?: { message?: unknown } };
+    const message = body?.error?.message;
+    return typeof message === 'string' && message ? `: ${message.slice(0, 200)}` : '';
+  } catch {
+    return '';
+  }
+};
+
 export interface GeminiOptions {
   apiKey: string;
   model?: string;
@@ -218,7 +229,7 @@ export const fetchGeminiRecommendation = async (
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new GeminiError(`Gemini APIエラー（HTTP ${res.status}）`);
+      throw new GeminiError(`Gemini APIエラー（HTTP ${res.status}${await readErrorMessage(res)}）`);
     }
     return parseGeminiResponse((await res.json()) as GeminiResponse, profile);
   } catch (e) {

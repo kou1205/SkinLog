@@ -20,7 +20,12 @@ export const getRecommendation = async (
   { apiKey, model = DEFAULT_GEMINI_MODEL, storage, fetchImpl }: RecommendationDeps,
 ): Promise<RecommendationResult> => {
   if (!apiKey) {
-    return { ...recommend(profile), source: 'local' };
+    return {
+      ...recommend(profile),
+      source: 'local',
+      notice:
+        'Gemini APIキーが読み込まれていません。.env に EXPO_PUBLIC_GEMINI_API_KEY を書き、npx expo start --clear で起動し直してください。アプリ内のサンプル商品から提案しています。',
+    };
   }
 
   const cached = await readCachedResult(storage, profile, model, PROMPT_VERSION);

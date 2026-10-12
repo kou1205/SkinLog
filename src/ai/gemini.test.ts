@@ -150,6 +150,7 @@ describe('getRecommendation', () => {
     const fetchImpl = okFetch({});
     const result = await getRecommendation(profile, { storage: memoryStorage(), fetchImpl });
     expect(result.source).toBe('local');
+    expect(result.notice).toContain('APIキーが読み込まれていません');
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -179,6 +180,19 @@ describe('getRecommendation', () => {
     expect(result.source).toBe('local');
     expect(result.notice).toContain('HTTP 429');
     expect(storage.data.size).toBe(0);
+  });
+
+  it('shows the reason Google gives for an HTTP error', async () => {
+    const fetchImpl = jest.fn(
+      async () =>
+        ({
+          ok: false,
+          status: 400,
+          json: async () => ({ error: { message: 'API key not valid. Please pass a valid API key.' } }),
+        }) as unknown as Response,
+    );
+    const result = await getRecommendation(profile, { apiKey: 'bad', storage: memoryStorage(), fetchImpl });
+    expect(result.notice).toContain('HTTP 400: API key not valid');
   });
 
   it('falls back when the network fails', async () => {
