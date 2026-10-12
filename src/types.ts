@@ -27,6 +27,8 @@ export interface UserProfile {
 
 export interface Product {
   id: string;
+  /** ブランド名（AI提案の実在商品で使用） */
+  brand?: string;
   name: string;
   step: RoutineStep;
   /** 税込の参考価格（円） */
@@ -55,8 +57,19 @@ export interface Recommendation {
   overBudget: boolean;
 }
 
+export interface SourceLink {
+  title: string;
+  uri: string;
+}
+
 export interface RecommendationResult {
   items: Recommendation[];
   totalPrice: number;
   tips: string[];
+  /** 提案の出どころ（未設定の古い履歴はローカル） */
+  source?: 'local' | 'gemini';
+  /** Google検索グラウンディングで参照したページ */
+  sources?: SourceLink[];
+  /** 画面に表示する補足（AIが使えずローカル提案にした理由など） */
+  notice?: string;
 }

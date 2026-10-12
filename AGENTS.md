@@ -28,7 +28,8 @@ Run lint and typecheck before declaring any task done.
 
 - `App.tsx` — root component; switches between the 診断 (diagnose) and 履歴 (history) tabs with local state. Migrate to Expo Router (`src/app/`) when the app grows beyond a few screens.
 - `src/logic/recommend.ts` — pure recommendation engine (scores products by skin type, concerns, age, gender, budget). Covered by `src/logic/recommend.test.ts`; run `npm test`.
-- `src/data/products.ts` — sample product catalog (fictional names/prices).
+- `src/ai/` — Gemini recommendations of real products (Google Search grounding, temperature 0 + seed, per-profile cache in AsyncStorage for identical answers). Falls back to the local engine without `EXPO_PUBLIC_GEMINI_API_KEY` or on errors. Bump `PROMPT_VERSION` when changing the prompt or output format.
+- `src/data/products.ts` — sample product catalog (fictional names/prices), used as the fallback.
 - `src/screens/`, `src/components/` — UI. `src/storage/history.ts` — AsyncStorage persistence.
 
 ## Building with EAS

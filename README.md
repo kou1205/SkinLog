@@ -11,6 +11,23 @@
   - 肌質・悩みに応じたワンポイントアドバイス
 - **履歴**：診断結果を端末に保存（AsyncStorage）し、肌状態の推移を振り返り可能
 
+## Gemini で実在商品を提案する
+
+`.env.example` を `.env` にコピーし、[Google AI Studio](https://aistudio.google.com/) で発行した API キーを設定します。
+
+```bash
+cp .env.example .env
+# EXPO_PUBLIC_GEMINI_API_KEY=xxxx を記入して npm start
+```
+
+- **実在商品に絞る**：Google検索グラウンディングで販売を確認できた商品だけを挙げるよう指示し、参照したページを結果画面に表示します
+- **回答の揺らぎをなくす**：
+  1. temperature 0・topK 1・seed固定で、毎回同じ答えになりやすくする
+  2. 条件（肌悩みの選択順は無視）ごとに結果を端末に保存し、同じ条件では保存済みの結果を返す → 同じ条件なら必ず同じ答え
+  3. プロンプトやモデルを変えたときだけ作り直す（`PROMPT_VERSION` を上げる）
+- APIキー未設定・通信エラー・回答の形式不正のときは、アプリ内のサンプル商品で提案します
+- ⚠️ `EXPO_PUBLIC_` の値はアプリに埋め込まれ、誰でも取り出せます。一般公開する前に、APIキーをサーバー側に置く構成に変更してください
+
 ## 起動方法
 
 ```bash
@@ -37,13 +54,17 @@ src/
   data/products.ts              商品カタログ（サンプル）
   logic/recommend.ts            レコメンドエンジン（スコアリング）
   logic/recommend.test.ts       テスト
+  ai/gemini.ts                  Gemini API 呼び出し・回答の検証
+  ai/cache.ts                   同じ条件の結果を保存（揺らぎ対策）
+  ai/getRecommendation.ts       キャッシュ → Gemini → ローカルの順で提案
+  config.ts                     APIキー・モデル設定
   screens/ProfileFormScreen.tsx 条件入力画面
   screens/HistoryScreen.tsx     履歴画面
   components/                   共通UI
   storage/history.ts            履歴の永続化
 ```
 
-## レコメンドの仕組み
+## ローカル（サンプル商品）のレコメンドの仕組み
 
 予算（1品あたりの上限）と「避けるべき肌質・年代」で候補を絞り込んだ後、以下のスコアで各ステップの最上位を選びます（同点なら安い方）。
 

@@ -1,10 +1,12 @@
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
+import { getRecommendation } from './src/ai/getRecommendation';
 import { RecommendationView } from './src/components/RecommendationView';
-import { recommend } from './src/logic/recommend';
+import { GEMINI_API_KEY, GEMINI_MODEL } from './src/config';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { ProfileFormScreen } from './src/screens/ProfileFormScreen';
 import { HistoryEntry, clearHistory, loadHistory, saveHistoryEntry } from './src/storage/history';
@@ -18,16 +20,26 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | undefined>();
   const [result, setResult] = useState<RecommendationResult | null>(null);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     loadHistory().then(setHistory);
   }, []);
 
   const handleSubmit = async (next: UserProfile) => {
-    const nextResult = recommend(next);
     setProfile(next);
-    setResult(nextResult);
-    setHistory(await saveHistoryEntry(next, nextResult));
+    setLoading(true);
+    try {
+      const nextResult = await getRecommendation(next, {
+        apiKey: GEMINI_API_KEY,
+        model: GEMINI_MODEL,
+        storage: AsyncStorage,
+      });
+      setResult(nextResult);
+      setHistory(await saveHistoryEntry(next, nextResult));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleClearHistory = async () => {
@@ -44,7 +56,12 @@ export default function App() {
         </View>
 
         <View style={styles.body}>
-          {tab === 'history' ? (
+          {loading ? (
+            <View style={styles.loading}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>あなたに合う商品を探しています…</Text>
+            </View>
+          ) : tab === 'history' ? (
             <HistoryScreen history={history} onClear={handleClearHistory} />
           ) : result && profile ? (
             <ScrollView contentContainerStyle={styles.resultContent}>
@@ -81,6 +98,8 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '800', color: colors.primaryDark },
   body: { flex: 1 },
   resultContent: { padding: spacing.md },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: spacing.md },
+  loadingText: { fontSize: 14, color: colors.subText },
   retry: {
     marginTop: spacing.md,
     borderWidth: 1,
