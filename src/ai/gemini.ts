@@ -79,11 +79,11 @@ ${STEP_ORDER.map((s) => `- ${s}: ${STEP_LABELS[s]}`).join('\n')}
 ${OUTPUT_FORMAT}`;
 };
 
-export const buildRequestBody = (profile: UserProfile) => ({
+export const buildRequestBody = (profile: UserProfile, { grounding = true }: { grounding?: boolean } = {}) => ({
   systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
   contents: [{ role: 'user', parts: [{ text: buildPrompt(profile) }] }],
-  // 実在する商品に絞るため、Google検索で裏付けを取らせる
-  tools: [{ google_search: {} }],
+  // 実在する商品に絞るため、Google検索で裏付けを取らせる（検索には別枠の利用上限がある）
+  ...(grounding ? { tools: [{ google_search: {} }] } : {}),
   generationConfig: GENERATION_CONFIG,
 });
 
@@ -197,14 +197,28 @@ export const parseGeminiResponse = (response: GeminiResponse, profile: UserProfi
 
 // ---- API呼び出し ----
 
-/** Google が返すエラー本文（{ error: { message } }）から原因を取り出す */
-const readErrorMessage = async (res: Response): Promise<string> => {
+interface GeminiErrorBody {
+  error?: { message?: unknown; details?: { '@type'?: string; retryDelay?: unknown }[] };
+}
+
+/** Google が返すエラー本文から、画面に出す説明を作る */
+export const describeHttpError = (status: number, body: GeminiErrorBody | null): string => {
+  if (status === 429) {
+    const retry = body?.error?.details?.find((d) => d['@type']?.endsWith('RetryInfo'))?.retryDelay;
+    const seconds = typeof retry === 'string' ? Math.ceil(parseFloat(retry)) : NaN;
+    const wait = Number.isFinite(seconds) ? `約${seconds}秒後に再試行できます` : 'しばらく待ってから再試行してください';
+    return `Gemini APIの利用上限に達しました（HTTP 429・${wait}）`;
+  }
+  const message = body?.error?.message;
+  const detail = typeof message === 'string' && message ? `: ${message.slice(0, 200)}` : '';
+  return `Gemini APIエラー（HTTP ${status}${detail}）`;
+};
+
+const readErrorBody = async (res: Response): Promise<GeminiErrorBody | null> => {
   try {
-    const body = (await res.json()) as { error?: { message?: unknown } };
-    const message = body?.error?.message;
-    return typeof message === 'string' && message ? `: ${message.slice(0, 200)}` : '';
+    return (await res.json()) as GeminiErrorBody;
   } catch {
-    return '';
+    return null;
   }
 };
 
@@ -213,11 +227,12 @@ export interface GeminiOptions {
   model?: string;
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
+  grounding?: boolean;
 }
 
 export const fetchGeminiRecommendation = async (
   profile: UserProfile,
-  { apiKey, model = DEFAULT_GEMINI_MODEL, fetchImpl = fetch, timeoutMs = 60000 }: GeminiOptions,
+  { apiKey, model = DEFAULT_GEMINI_MODEL, fetchImpl = fetch, timeoutMs = 60000, grounding = true }: GeminiOptions,
 ): Promise<RecommendationResult> => {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -225,11 +240,11 @@ export const fetchGeminiRecommendation = async (
     const res = await fetchImpl(`${GEMINI_ENDPOINT}/${model}:generateContent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify(buildRequestBody(profile)),
+      body: JSON.stringify(buildRequestBody(profile, { grounding })),
       signal: controller.signal,
     });
     if (!res.ok) {
-      throw new GeminiError(`Gemini APIエラー（HTTP ${res.status}${await readErrorMessage(res)}）`);
+      throw new GeminiError(describeHttpError(res.status, await readErrorBody(res)));
     }
     return parseGeminiResponse((await res.json()) as GeminiResponse, profile);
   } catch (e) {

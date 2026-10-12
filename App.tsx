@@ -6,7 +6,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { getRecommendation } from './src/ai/getRecommendation';
 import { RecommendationView } from './src/components/RecommendationView';
-import { GEMINI_API_KEY, GEMINI_MODEL } from './src/config';
+import { GEMINI_API_KEY, GEMINI_GROUNDING, GEMINI_MOCK, GEMINI_MODEL } from './src/config';
 import { HistoryScreen } from './src/screens/HistoryScreen';
 import { ProfileFormScreen } from './src/screens/ProfileFormScreen';
 import { HistoryEntry, clearHistory, loadHistory, saveHistoryEntry } from './src/storage/history';
@@ -34,6 +34,8 @@ export default function App() {
         apiKey: GEMINI_API_KEY,
         model: GEMINI_MODEL,
         storage: AsyncStorage,
+        mock: GEMINI_MOCK,
+        grounding: GEMINI_GROUNDING,
       });
       setResult(nextResult);
       setHistory(await saveHistoryEntry(next, nextResult));

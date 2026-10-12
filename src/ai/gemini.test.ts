@@ -1,5 +1,12 @@
 import { KeyValueStorage, profileKey } from './cache';
-import { GENERATION_CONFIG, buildPrompt, buildRequestBody, extractJson, parseGeminiResponse } from './gemini';
+import {
+  GENERATION_CONFIG,
+  buildPrompt,
+  buildRequestBody,
+  describeHttpError,
+  extractJson,
+  parseGeminiResponse,
+} from './gemini';
 import { getRecommendation } from './getRecommendation';
 import { UserProfile } from '../types';
 
@@ -62,6 +69,10 @@ describe('request settings for stable answers', () => {
 
   it('grounds answers with Google Search so products are real', () => {
     expect(buildRequestBody(profile).tools).toEqual([{ google_search: {} }]);
+  });
+
+  it('can skip Google Search to save quota', () => {
+    expect(buildRequestBody(profile, { grounding: false })).not.toHaveProperty('tools');
   });
 
   it('builds the same prompt regardless of concern order', () => {
@@ -211,5 +222,49 @@ describe('getRecommendation', () => {
     });
     expect(result.source).toBe('local');
     expect(result.notice).toContain('JSON');
+  });
+
+  it('uses mock answers without calling the API or caching them', async () => {
+    const storage = memoryStorage();
+    const fetchImpl = okFetch({});
+    const result = await getRecommendation(profile, { storage, fetchImpl, mock: true });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.source).toBe('gemini');
+    expect(result.items).toHaveLength(5);
+    expect(result.items[0].product.brand).toContain('テスト');
+    expect(result.notice).toContain('テスト用モード');
+    expect(storage.data.size).toBe(0);
+  });
+
+  it('keeps search and no-search answers in separate caches', async () => {
+    const storage = memoryStorage();
+    const fetchImpl = okFetch(geminiResponse(validPayload));
+    await getRecommendation(profile, { apiKey: 'k', storage, fetchImpl });
+    await getRecommendation(profile, { apiKey: 'k', storage, fetchImpl, grounding: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    const body = JSON.parse((fetchImpl.mock.calls[1] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.tools).toBeUndefined();
+  });
+});
+
+describe('describeHttpError', () => {
+  it('explains rate limits with the wait time Google suggests', () => {
+    const body = {
+      error: {
+        message: 'Resource has been exhausted',
+        details: [{ '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '16.5s' }],
+      },
+    };
+    expect(describeHttpError(429, body)).toBe('Gemini APIの利用上限に達しました（HTTP 429・約17秒後に再試行できます）');
+  });
+
+  it('explains rate limits without a wait time', () => {
+    expect(describeHttpError(429, null)).toContain('しばらく待ってから');
+  });
+
+  it('includes the message for other errors', () => {
+    expect(describeHttpError(404, { error: { message: 'model not found' } })).toBe(
+      'Gemini APIエラー（HTTP 404: model not found）',
+    );
   });
 });
