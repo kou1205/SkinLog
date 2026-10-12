@@ -70,6 +70,8 @@ export interface RecommendationResult {
   source?: 'local' | 'gemini';
   /** Google検索グラウンディングで参照したページ */
   sources?: SourceLink[];
+  /** Gemini が実際に検索したキーワード */
+  searchQueries?: string[];
   /** 画面に表示する補足（AIが使えずローカル提案にした理由など） */
   notice?: string;
 }

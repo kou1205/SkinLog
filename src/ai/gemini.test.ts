@@ -121,6 +121,12 @@ describe('parseGeminiResponse', () => {
     ]);
   });
 
+  it('keeps the search queries Gemini used', () => {
+    const res = geminiResponse(validPayload);
+    (res.candidates[0].groundingMetadata as Record<string, unknown>).webSearchQueries = ['乾燥肌 化粧水 定番', ''];
+    expect(parseGeminiResponse(res, profile).searchQueries).toEqual(['乾燥肌 化粧水 定番']);
+  });
+
   it('ignores thought parts', () => {
     const res = geminiResponse(validPayload);
     res.candidates[0].content.parts.unshift({ text: '考え中 {', thought: true } as never);
@@ -256,6 +262,20 @@ describe('describeHttpError', () => {
       },
     };
     expect(describeHttpError(429, body)).toBe('Gemini APIの利用上限に達しました（HTTP 429・約17秒後に再試行できます）');
+  });
+
+  it('names which quota was hit', () => {
+    const body = {
+      error: {
+        details: [
+          {
+            '@type': 'type.googleapis.com/google.rpc.QuotaFailure',
+            violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }],
+          },
+        ],
+      },
+    };
+    expect(describeHttpError(429, body)).toContain('上限: GenerateRequestsPerDayPerProjectPerModel-FreeTier');
   });
 
   it('explains rate limits without a wait time', () => {

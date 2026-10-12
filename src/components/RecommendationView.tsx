@@ -89,6 +89,9 @@ export function RecommendationView({ profile, result }: Props) {
       {result.sources && result.sources.length > 0 ? (
         <View style={styles.tips}>
           <Text style={styles.tipsTitle}>参考にした情報</Text>
+          {result.searchQueries && result.searchQueries.length > 0 ? (
+            <Text style={styles.searchQueries}>検索したキーワード：{result.searchQueries.join(' / ')}</Text>
+          ) : null}
           {result.sources.slice(0, 8).map((src) => (
             <Pressable key={src.uri} onPress={() => Linking.openURL(src.uri)} accessibilityRole="link">
               <Text style={styles.sourceLink} numberOfLines={1}>
@@ -125,6 +128,7 @@ const styles = StyleSheet.create({
     padding: spacing.sm,
     borderRadius: radius.sm,
   },
+  searchQueries: { fontSize: 12, lineHeight: 18, color: colors.subText, marginBottom: spacing.xs },
   sourceLink: { fontSize: 13, lineHeight: 22, color: colors.primaryDark, textDecorationLine: 'underline' },
   total: { marginTop: spacing.sm, fontSize: 16, fontWeight: '700', color: colors.text },
   card: {

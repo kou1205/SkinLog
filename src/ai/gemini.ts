@@ -96,11 +96,14 @@ interface GeminiPart {
   thought?: boolean;
 }
 
-interface GeminiResponse {
+export interface GeminiResponse {
   candidates?: {
     content?: { parts?: GeminiPart[] };
     finishReason?: string;
-    groundingMetadata?: { groundingChunks?: { web?: { uri?: string; title?: string } }[] };
+    groundingMetadata?: {
+      webSearchQueries?: string[];
+      groundingChunks?: { web?: { uri?: string; title?: string } }[];
+    };
   }[];
   promptFeedback?: { blockReason?: string };
 }
@@ -192,14 +195,28 @@ export const parseGeminiResponse = (response: GeminiResponse, profile: UserProfi
     tips,
     source: 'gemini',
     sources: toSources(response),
+    searchQueries: (response.candidates?.[0]?.groundingMetadata?.webSearchQueries ?? []).filter(isNonEmptyString),
   };
 };
 
 // ---- API呼び出し ----
 
-interface GeminiErrorBody {
-  error?: { message?: unknown; details?: { '@type'?: string; retryDelay?: unknown }[] };
+export interface GeminiErrorBody {
+  error?: {
+    message?: unknown;
+    details?: {
+      '@type'?: string;
+      retryDelay?: unknown;
+      violations?: { quotaMetric?: string; quotaId?: string; quotaValue?: string }[];
+    }[];
+  };
 }
+
+/** 429 のとき、どの上限に当たったか（例: GenerateRequestsPerDayPerProjectPerModel-FreeTier） */
+export const quotaViolations = (body: GeminiErrorBody | null) =>
+  (body?.error?.details ?? [])
+    .filter((d) => d['@type']?.endsWith('QuotaFailure'))
+    .flatMap((d) => d.violations ?? []);
 
 /** Google が返すエラー本文から、画面に出す説明を作る */
 export const describeHttpError = (status: number, body: GeminiErrorBody | null): string => {
@@ -207,14 +224,18 @@ export const describeHttpError = (status: number, body: GeminiErrorBody | null):
     const retry = body?.error?.details?.find((d) => d['@type']?.endsWith('RetryInfo'))?.retryDelay;
     const seconds = typeof retry === 'string' ? Math.ceil(parseFloat(retry)) : NaN;
     const wait = Number.isFinite(seconds) ? `約${seconds}秒後に再試行できます` : 'しばらく待ってから再試行してください';
-    return `Gemini APIの利用上限に達しました（HTTP 429・${wait}）`;
+    const ids = quotaViolations(body)
+      .map((v) => v.quotaId)
+      .filter(Boolean);
+    const which = ids.length ? `・上限: ${ids.join(', ')}` : '';
+    return `Gemini APIの利用上限に達しました（HTTP 429・${wait}${which}）`;
   }
   const message = body?.error?.message;
   const detail = typeof message === 'string' && message ? `: ${message.slice(0, 200)}` : '';
   return `Gemini APIエラー（HTTP ${status}${detail}）`;
 };
 
-const readErrorBody = async (res: Response): Promise<GeminiErrorBody | null> => {
+export const readErrorBody = async (res: Response): Promise<GeminiErrorBody | null> => {
   try {
     return (await res.json()) as GeminiErrorBody;
   } catch {

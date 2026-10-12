@@ -34,6 +34,19 @@ cp .env.example .env
   - 設定を変えたら `npx expo start --clear` で起動し直す
 - ⚠️ `EXPO_PUBLIC_` の値はアプリに埋め込まれ、誰でも取り出せます。一般公開する前に、APIキーをサーバー側に置く構成に変更してください
 
+### 検索での裏付けを確認する
+
+アプリを使わずに Gemini を1回だけ呼び、検索したキーワード・提案商品・参照ページを表示します（キャッシュは使いません）。
+
+```bash
+npm run try-gemini
+npm run try-gemini -- --gender male --age 20s --budget low --skin oily --concerns acne,pores
+npm run try-gemini -- --no-search   # 検索なしと比較
+npm run try-gemini -- --raw         # 生の回答も表示
+```
+
+上限（HTTP 429）に当たった場合は、どの上限（1分あたり・1日あたり・検索の枠など）かを表示します。
+
 ## 起動方法
 
 ```bash
